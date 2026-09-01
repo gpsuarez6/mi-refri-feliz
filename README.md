@@ -4,7 +4,8 @@ PWA móvil para administrar el refrigerador, la despensa y los artículos de ase
 
 ## Funciones
 
-- Inventario separado por Refrigerador, Despensa y Aseo
+- Secciones de inventario totalmente administrables
+- Crear, renombrar y eliminar secciones como Refrigerador, Despensa, Congelador, Frutas y verduras o Aseo
 - Productos existentes o faltantes
 - Lista de compras automática
 - Cantidades, unidades y precios estimados en CLP
