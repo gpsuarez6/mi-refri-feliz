@@ -1,5 +1,8 @@
 const STORAGE_KEY="mi-refri-feliz-v1";
 const CATEGORIES_KEY="mi-refri-feliz-categories-v1";
+const BACKUPS_KEY="mi-refri-feliz-backups-v1";
+const DB_NAME="mi-refri-feliz-proteccion";
+const hadPrimaryData=localStorage.getItem(STORAGE_KEY)!==null;
 const starterCategories=[
   {id:"fridge",name:"Refrigerador",emoji:"❄️"},
   {id:"pantry",name:"Despensa",emoji:"🥫"},
@@ -47,11 +50,74 @@ function loadItems(){
 }
 function saveItems(){
   localStorage.setItem(STORAGE_KEY,JSON.stringify(items));
+  localStorage.setItem(CATEGORIES_KEY,JSON.stringify(categories));
+  createAutomaticBackup();
   renderAll();
 }
 function saveCategories(){
+  localStorage.setItem(STORAGE_KEY,JSON.stringify(items));
   localStorage.setItem(CATEGORIES_KEY,JSON.stringify(categories));
+  createAutomaticBackup();
   renderAll();
+}
+function getLocalBackups(){
+  try{const stored=JSON.parse(localStorage.getItem(BACKUPS_KEY));return Array.isArray(stored)?stored:[]}catch{return []}
+}
+function openProtectionDb(){
+  return new Promise((resolve,reject)=>{
+    if(!("indexedDB" in window)){reject(new Error("IndexedDB no disponible"));return}
+    const request=indexedDB.open(DB_NAME,1);
+    request.onupgradeneeded=()=>{if(!request.result.objectStoreNames.contains("snapshots"))request.result.createObjectStore("snapshots",{keyPath:"createdAt"})};
+    request.onsuccess=()=>resolve(request.result);request.onerror=()=>reject(request.error);
+  });
+}
+async function saveToProtectionDb(snapshot){
+  try{
+    const db=await openProtectionDb();
+    const transaction=db.transaction("snapshots","readwrite");transaction.objectStore("snapshots").put(snapshot);
+    transaction.oncomplete=()=>db.close();
+  }catch{}
+}
+function createAutomaticBackup(){
+  const snapshot={createdAt:new Date().toISOString(),categories:structuredClone(categories),items:structuredClone(items)};
+  const backups=getLocalBackups();
+  const signature=JSON.stringify({categories:snapshot.categories,items:snapshot.items});
+  const latest=backups[0]?JSON.stringify({categories:backups[0].categories,items:backups[0].items}):"";
+  if(signature===latest)return;
+  backups.unshift(snapshot);localStorage.setItem(BACKUPS_KEY,JSON.stringify(backups.slice(0,12)));saveToProtectionDb(snapshot);
+}
+async function recoverFromProtectionDb(){
+  if(hadPrimaryData)return false;
+  try{
+    const db=await openProtectionDb();
+    const snapshot=await new Promise((resolve,reject)=>{
+      const request=db.transaction("snapshots","readonly").objectStore("snapshots").openCursor(null,"prev");
+      request.onsuccess=()=>resolve(request.result?.value||null);request.onerror=()=>reject(request.error);
+    });
+    db.close();
+    if(!snapshot?.items?.length||!snapshot?.categories?.length)return false;
+    categories=snapshot.categories;items=snapshot.items;
+    localStorage.setItem(CATEGORIES_KEY,JSON.stringify(categories));localStorage.setItem(STORAGE_KEY,JSON.stringify(items));
+    createAutomaticBackup();return true;
+  }catch{return false}
+}
+function renderBackupCount(){
+  const count=getLocalBackups().length;$("#backupCount").textContent=`${count} guardada${count===1?"":"s"}`;
+}
+function openBackupsDialog(){
+  const backups=getLocalBackups();
+  $("#backupsList").innerHTML=backups.length?backups.map(backup=>{
+    const date=new Date(backup.createdAt).toLocaleString("es-CL",{dateStyle:"medium",timeStyle:"short"});
+    return `<div class="backup-row"><div><strong>${date}</strong><small>${backup.items.length} productos · ${backup.categories.length} secciones</small></div><button data-restore-backup="${backup.createdAt}">Restaurar</button></div>`;
+  }).join(""):`<div class="empty-state"><span>🛡️</span><h3>Aún no hay copias</h3><p>Se crearán automáticamente cuando guardes cambios.</p></div>`;
+  $$("[data-restore-backup]").forEach(button=>button.addEventListener("click",()=>restoreBackup(button.dataset.restoreBackup)));
+  $("#backupsDialog").showModal();
+}
+function restoreBackup(createdAt){
+  const snapshot=getLocalBackups().find(backup=>backup.createdAt===createdAt);if(!snapshot)return;
+  if(!confirm("¿Restaurar esta copia? El estado actual también quedará guardado."))return;
+  createAutomaticBackup();categories=structuredClone(snapshot.categories);items=structuredClone(snapshot.items);
+  $("#backupsDialog").close();saveItems();showToast("Copia restaurada");
 }
 function missing(){return items.filter(item=>!item.inStock)}
 function showToast(message){
@@ -59,7 +125,7 @@ function showToast(message){
   clearTimeout(showToast.timer);showToast.timer=setTimeout(()=>toast.classList.remove("show"),2200);
 }
 function renderAll(){
-  renderSummary();renderCategoryControls();renderZones();renderInventory();renderShopping();renderCategorySettings();
+  renderSummary();renderCategoryControls();renderZones();renderInventory();renderShopping();renderCategorySettings();renderBackupCount();
 }
 function renderSummary(){
   const absent=missing();
@@ -255,6 +321,8 @@ $$("[data-category-close]").forEach(button=>button.addEventListener("click",()=>
 $("#shareBtn").addEventListener("click",shareList);
 $("#exportBtn").addEventListener("click",exportData);
 $("#importInput").addEventListener("change",importData);
+$("#backupsBtn").addEventListener("click",openBackupsDialog);
+$$("[data-backups-close]").forEach(button=>button.addEventListener("click",()=>$("#backupsDialog").close()));
 $("#resetBtn").addEventListener("click",()=>{if(confirm("¿Restaurar las secciones y productos de ejemplo? Se reemplazará tu inventario actual.")){categories=structuredClone(starterCategories);items=structuredClone(starterItems);localStorage.setItem(CATEGORIES_KEY,JSON.stringify(categories));saveItems();showToast("Datos restaurados")}});
 $("#selectAll").addEventListener("change",event=>{missing().forEach(item=>item.checked=event.target.checked);saveItems()});
 $("#clearChecked").addEventListener("click",()=>{missing().forEach(item=>item.checked=false);saveItems()});
@@ -267,4 +335,9 @@ $("#installSettingsBtn").addEventListener("click",requestInstall);
 window.addEventListener("beforeinstallprompt",event=>{event.preventDefault();deferredInstallPrompt=event});
 window.addEventListener("appinstalled",()=>showToast("¡Mi Refri Feliz fue instalada!"));
 if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("./sw.js").catch(()=>{}));
-renderAll();syncTabs();
+async function initialize(){
+  const recovered=await recoverFromProtectionDb();
+  createAutomaticBackup();renderAll();syncTabs();
+  if(recovered)showToast("Tus datos fueron recuperados automáticamente");
+}
+initialize();
