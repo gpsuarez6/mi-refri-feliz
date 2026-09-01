@@ -28,4 +28,4 @@ Luego abre `http://localhost:8080`.
 
 ## Publicación
 
-El flujo de GitHub Actions incluido publica el sitio estático mediante GitHub Pages.
+El flujo de GitHub Actions incluido publica el sitio estático mediante GitHub Pages.\n\nSitio: https://gpsuarez6.github.io/mi-refri-feliz/
