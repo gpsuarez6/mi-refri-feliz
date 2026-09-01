@@ -12,6 +12,7 @@ PWA móvil para administrar el refrigerador, la despensa y los artículos de ase
 - Total pendiente y control de compra
 - Edición y eliminación de productos
 - Respaldo e importación de datos en JSON
+- Copias automáticas en almacenamiento independiente y recuperación de versiones anteriores
 - Funcionamiento sin conexión
 - Instalable en iPhone y Android
 
