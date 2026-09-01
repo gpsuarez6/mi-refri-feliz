@@ -1,0 +1,16 @@
+{
+  "name":"Mi Refri Feliz",
+  "short_name":"Mi Refri",
+  "description":"Inventario del refrigerador, despensa, aseo y lista de compras.",
+  "lang":"es-CL",
+  "start_url":"./",
+  "scope":"./",
+  "display":"standalone",
+  "orientation":"portrait",
+  "background_color":"#fbfdfc",
+  "theme_color":"#0d806f",
+  "categories":["lifestyle","shopping","utilities"],
+  "icons":[
+    {"src":"./icon.svg","sizes":"any","type":"image/svg+xml","purpose":"any maskable"}
+  ]
+}
