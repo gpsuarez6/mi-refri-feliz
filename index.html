@@ -103,6 +103,7 @@
         </div>
         <div class="settings-group">
           <h3>Datos</h3>
+          <button id="backupsBtn" class="setting-row"><span>🛡️ Copias automáticas</span><strong id="backupCount">0 guardadas</strong></button>
           <button id="exportBtn" class="setting-row"><span>📤 Exportar respaldo</span><b>›</b></button>
           <label class="setting-row file-row"><span>📥 Importar respaldo</span><b>›</b><input id="importInput" type="file" accept="application/json"></label>
           <button id="resetBtn" class="setting-row danger-row"><span>↻ Restaurar datos de ejemplo</span><b>›</b></button>
@@ -173,6 +174,17 @@
       <div class="phone-icon">📱</div><h2>Instala Mi Refri Feliz</h2>
       <p id="installInstructions"></p>
       <button class="primary-button" data-info-close>Entendido</button>
+    </div>
+  </dialog>
+
+  <dialog id="backupsDialog">
+    <div class="info-content backup-content">
+      <div class="dialog-header">
+        <div><p class="eyebrow">PROTECCIÓN</p><h2>Copias automáticas</h2></div>
+        <button type="button" class="dialog-close" data-backups-close aria-label="Cerrar">×</button>
+      </div>
+      <p class="backup-intro">Mi Refri Feliz guarda versiones anteriores para recuperarlas si algo cambia inesperadamente.</p>
+      <div id="backupsList" class="backups-list"></div>
     </div>
   </dialog>
 
