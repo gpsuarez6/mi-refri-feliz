@@ -1,9 +1,12 @@
 const STORAGE_KEY="mi-refri-feliz-v1";
-const categoryMeta={
-  fridge:{name:"Refrigerador",emoji:"❄️"},
-  pantry:{name:"Despensa",emoji:"🥫"},
-  cleaning:{name:"Aseo",emoji:"🧼"}
-};
+const CATEGORIES_KEY="mi-refri-feliz-categories-v1";
+const starterCategories=[
+  {id:"fridge",name:"Refrigerador",emoji:"❄️"},
+  {id:"pantry",name:"Despensa",emoji:"🥫"},
+  {id:"freezer",name:"Congelador",emoji:"🧊"},
+  {id:"produce",name:"Frutas y verduras",emoji:"🥬"},
+  {id:"cleaning",name:"Aseo",emoji:"🧼"}
+];
 const starterItems=[
   {id:"milk",name:"Leche",category:"fridge",emoji:"🥛",qty:2,unit:"litros",price:2400,inStock:true,checked:false},
   {id:"eggs",name:"Huevos",category:"fridge",emoji:"🥚",qty:12,unit:"unidades",price:3990,inStock:true,checked:false},
@@ -17,6 +20,7 @@ const starterItems=[
   {id:"paper",name:"Papel higiénico",category:"cleaning",emoji:"🧻",qty:12,unit:"rollos",price:6990,inStock:true,checked:false},
   {id:"dishsoap",name:"Lavalozas",category:"cleaning",emoji:"🧽",qty:1,unit:"botella",price:1890,inStock:true,checked:false}
 ];
+let categories=loadCategories();
 let items=loadItems();
 let currentCategory="all";
 let currentView="home";
@@ -26,6 +30,14 @@ const $$=selector=>[...document.querySelectorAll(selector)];
 const money=value=>new Intl.NumberFormat("es-CL",{style:"currency",currency:"CLP",maximumFractionDigits:0}).format(Number(value)||0);
 const escapeHTML=value=>String(value).replace(/[&<>"']/g,char=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[char]));
 const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,7);
+const categoryById=id=>categories.find(category=>category.id===id);
+
+function loadCategories(){
+  try{
+    const stored=JSON.parse(localStorage.getItem(CATEGORIES_KEY));
+    return Array.isArray(stored)&&stored.length?stored:structuredClone(starterCategories);
+  }catch{return structuredClone(starterCategories)}
+}
 
 function loadItems(){
   try{
@@ -37,13 +49,17 @@ function saveItems(){
   localStorage.setItem(STORAGE_KEY,JSON.stringify(items));
   renderAll();
 }
+function saveCategories(){
+  localStorage.setItem(CATEGORIES_KEY,JSON.stringify(categories));
+  renderAll();
+}
 function missing(){return items.filter(item=>!item.inStock)}
 function showToast(message){
   const toast=$("#toast");toast.textContent=message;toast.classList.add("show");
   clearTimeout(showToast.timer);showToast.timer=setTimeout(()=>toast.classList.remove("show"),2200);
 }
 function renderAll(){
-  renderSummary();renderZones();renderInventory();renderShopping();
+  renderSummary();renderCategoryControls();renderZones();renderInventory();renderShopping();renderCategorySettings();
 }
 function renderSummary(){
   const absent=missing();
@@ -55,24 +71,40 @@ function renderSummary(){
   $("#heroMessage").textContent=absent.length?absent.length===1?"Hay 1 producto esperando en tu lista.":`Hay ${absent.length} productos esperando en tu lista.`:"¡Tienes todo lo necesario en casa!";
 }
 function renderZones(){
-  $("#zoneCards").innerHTML=Object.entries(categoryMeta).map(([key,meta])=>{
-    const group=items.filter(item=>item.category===key);
+  $("#zoneCards").innerHTML=categories.map(category=>{
+    const group=items.filter(item=>item.category===category.id);
     const absent=group.filter(item=>!item.inStock).length;
-    return `<button class="zone-card" data-zone="${key}">
-      <span class="zone-emoji">${meta.emoji}</span>
-      <div><strong>${meta.name}</strong><small>${group.length} productos · ${absent?absent+" faltante"+(absent>1?"s":""):"todo disponible"}</small></div><b>›</b>
+    return `<button class="zone-card" data-zone="${category.id}">
+      <span class="zone-emoji">${escapeHTML(category.emoji)}</span>
+      <div><strong>${escapeHTML(category.name)}</strong><small>${group.length} productos · ${absent?absent+" faltante"+(absent>1?"s":""):"todo disponible"}</small></div><b>›</b>
     </button>`;
   }).join("");
   $$("[data-zone]").forEach(button=>button.addEventListener("click",()=>{
     currentCategory=button.dataset.zone;syncTabs();navigate("inventory");
   }));
 }
+function renderCategoryControls(){
+  const tabs=$("#categoryTabs");
+  tabs.innerHTML=`<button class="tab ${currentCategory==="all"?"active":""}" data-category="all">Todo</button>`+categories.map(category=>`<button class="tab ${currentCategory===category.id?"active":""}" data-category="${category.id}">${escapeHTML(category.name)}</button>`).join("");
+  tabs.querySelectorAll(".tab").forEach(tab=>tab.addEventListener("click",()=>{currentCategory=tab.dataset.category;syncTabs();renderInventory()}));
+  const select=$("#productCategory");
+  const selected=select.value;
+  select.innerHTML=categories.map(category=>`<option value="${category.id}">${escapeHTML(category.emoji)} ${escapeHTML(category.name)}</option>`).join("");
+  if(categoryById(selected))select.value=selected;
+}
+function renderCategorySettings(){
+  $("#categorySettingsList").innerHTML=categories.map(category=>{
+    const count=items.filter(item=>item.category===category.id).length;
+    return `<div class="category-setting"><span class="category-icon">${escapeHTML(category.emoji)}</span><div><strong>${escapeHTML(category.name)}</strong><small>${count} producto${count===1?"":"s"}</small></div><button data-category-edit="${category.id}" aria-label="Editar ${escapeHTML(category.name)}">✎</button></div>`;
+  }).join("");
+  $$('[data-category-edit]').forEach(button=>button.addEventListener("click",()=>openCategoryDialog(button.dataset.categoryEdit)));
+}
 function renderInventory(){
   const term=$("#searchInput").value.trim().toLocaleLowerCase("es");
   const filtered=items.filter(item=>(currentCategory==="all"||item.category===currentCategory)&&item.name.toLocaleLowerCase("es").includes(term));
   $("#inventoryList").innerHTML=filtered.length?filtered.map(item=>`<article class="product-card ${item.inStock?"":"missing"}">
     <span class="product-emoji">${escapeHTML(item.emoji||"📦")}</span>
-    <div class="product-info"><strong>${escapeHTML(item.name)}</strong><small>${escapeHTML(categoryMeta[item.category]?.name||"Otro")} · ${escapeHTML(item.qty)} ${escapeHTML(item.unit)}</small></div>
+    <div class="product-info"><strong>${escapeHTML(item.name)}</strong><small>${escapeHTML(categoryById(item.category)?.name||"Sin sección")} · ${escapeHTML(item.qty)} ${escapeHTML(item.unit)}</small></div>
     <button class="stock-button" data-stock="${item.id}">${item.inStock?"Disponible":"Se acabó"}</button>
     <button class="edit-button" data-edit="${item.id}" aria-label="Editar ${escapeHTML(item.name)}">⋮</button>
   </article>`).join(""):`<div class="empty-state"><span>🔎</span><h3>No encontramos productos</h3><p>Cambia el filtro o agrega un producto nuevo.</p></div>`;
@@ -86,7 +118,7 @@ function renderShopping(){
   $("#shoppingSubtitle").textContent=`${absent.filter(i=>!i.checked).length} producto${absent.filter(i=>!i.checked).length===1?"":"s"} por comprar`;
   $("#shoppingList").innerHTML=absent.length?absent.map(item=>`<article class="shopping-item ${item.checked?"purchased":""}">
     <input class="shop-check" data-check="${item.id}" type="checkbox" ${item.checked?"checked":""} aria-label="Marcar ${escapeHTML(item.name)}">
-    <div class="shop-main"><span class="shop-name">${escapeHTML(item.emoji||"📦")} ${escapeHTML(item.name)}</span><span class="shop-meta">${escapeHTML(item.qty)} ${escapeHTML(item.unit)} · ${escapeHTML(categoryMeta[item.category]?.name||"")}</span></div>
+    <div class="shop-main"><span class="shop-name">${escapeHTML(item.emoji||"📦")} ${escapeHTML(item.name)}</span><span class="shop-meta">${escapeHTML(item.qty)} ${escapeHTML(item.unit)} · ${escapeHTML(categoryById(item.category)?.name||"Sin sección")}</span></div>
     <div class="shop-price"><span>${money(item.price)}</span><br><input data-price="${item.id}" type="number" min="0" step="10" value="${Number(item.price)||0}" aria-label="Precio de ${escapeHTML(item.name)}"></div>
   </article>`).join(""):`<div class="empty-state"><span>🎉</span><h3>¡Lista vacía!</h3><p>No falta nada en casa. Tu refri está feliz.</p></div>`;
   $$("[data-check]").forEach(input=>input.addEventListener("change",()=>{
@@ -145,13 +177,44 @@ function deleteProduct(){
   const id=$("#productId").value;const item=items.find(i=>i.id===id);if(!item)return;
   if(confirm(`¿Eliminar “${item.name}” definitivamente?`)){items=items.filter(i=>i.id!==id);closeProductDialog();saveItems();showToast("Producto eliminado")}
 }
+function openCategoryDialog(id=null){
+  $("#categoryForm").reset();$("#categoryId").value="";$("#categoryEmoji").value="📦";
+  $("#categoryDialogTitle").textContent="Nueva sección";$("#deleteCategoryBtn").classList.add("hidden");$("#categoryDeleteWarning").classList.add("hidden");
+  if(id){
+    const category=categoryById(id);if(!category)return;
+    const count=items.filter(item=>item.category===id).length;
+    $("#categoryDialogTitle").textContent="Editar sección";$("#categoryId").value=id;$("#categoryName").value=category.name;$("#categoryEmoji").value=category.emoji;
+    $("#deleteCategoryBtn").classList.remove("hidden");
+    if(count){$("#categoryDeleteWarning").textContent=`Si eliminas esta sección, sus ${count} producto${count===1?"":"s"} pasarán a otra sección.`;$("#categoryDeleteWarning").classList.remove("hidden")}
+  }
+  $("#categoryDialog").showModal();setTimeout(()=>$("#categoryName").focus(),100);
+}
+function submitCategory(event){
+  event.preventDefault();
+  const id=$("#categoryId").value;const name=$("#categoryName").value.trim();const emoji=$("#categoryEmoji").value.trim()||"📦";
+  if(categories.some(category=>category.id!==id&&category.name.toLocaleLowerCase("es")===name.toLocaleLowerCase("es"))){showToast("Ya existe una sección con ese nombre");return}
+  if(id){const category=categoryById(id);category.name=name;category.emoji=emoji}
+  else categories.push({id:uid(),name,emoji});
+  $("#categoryDialog").close();saveCategories();showToast(id?"Sección actualizada":"Sección agregada");
+}
+function deleteCategory(){
+  const id=$("#categoryId").value;const category=categoryById(id);if(!category)return;
+  if(categories.length===1){showToast("Debes conservar al menos una sección");return}
+  const destination=categories.find(item=>item.id!==id);
+  const count=items.filter(item=>item.category===id).length;
+  const message=count?`¿Eliminar “${category.name}”? Sus ${count} producto${count===1?"":"s"} pasarán a “${destination.name}”.`:`¿Eliminar la sección “${category.name}”?`;
+  if(!confirm(message))return;
+  items.forEach(item=>{if(item.category===id)item.category=destination.id});
+  categories=categories.filter(item=>item.id!==id);if(currentCategory===id)currentCategory="all";
+  $("#categoryDialog").close();localStorage.setItem(STORAGE_KEY,JSON.stringify(items));saveCategories();showToast("Sección eliminada");
+}
 async function shareList(){
   const absent=missing();if(!absent.length){showToast("Tu lista está vacía");return}
   const text=["🛒 Mi Refri Feliz","",...absent.map(i=>`• ${i.name}: ${i.qty} ${i.unit} — ${money(i.price)}`),"",`Total estimado: ${money(absent.reduce((s,i)=>s+(Number(i.price)||0),0))}`].join("\n");
   try{if(navigator.share)await navigator.share({title:"Lista de compras",text});else{await navigator.clipboard.writeText(text);showToast("Lista copiada")}}catch(error){if(error.name!=="AbortError")showToast("No se pudo compartir")}
 }
 function exportData(){
-  const blob=new Blob([JSON.stringify({app:"Mi Refri Feliz",version:1,exportedAt:new Date().toISOString(),items},null,2)],{type:"application/json"});
+  const blob=new Blob([JSON.stringify({app:"Mi Refri Feliz",version:2,exportedAt:new Date().toISOString(),categories,items},null,2)],{type:"application/json"});
   const link=document.createElement("a");link.href=URL.createObjectURL(blob);link.download=`mi-refri-feliz-${new Date().toISOString().slice(0,10)}.json`;link.click();URL.revokeObjectURL(link.href);showToast("Respaldo creado");
 }
 async function importData(event){
@@ -159,8 +222,10 @@ async function importData(event){
   try{
     const parsed=JSON.parse(await file.text());const incoming=Array.isArray(parsed)?parsed:parsed.items;
     if(!Array.isArray(incoming))throw new Error("Formato inválido");
-    items=incoming.filter(i=>i&&i.id&&i.name&&categoryMeta[i.category]).map(i=>({...i,price:Number(i.price)||0,qty:Number(i.qty)||1,inStock:Boolean(i.inStock),checked:false}));
-    if(!items.length)throw new Error("Sin productos");saveItems();showToast("Respaldo importado");
+    if(Array.isArray(parsed.categories)&&parsed.categories.length)categories=parsed.categories.filter(c=>c&&c.id&&c.name).map(c=>({id:String(c.id),name:String(c.name),emoji:String(c.emoji||"📦")}));
+    const validIds=new Set(categories.map(category=>category.id));
+    items=incoming.filter(i=>i&&i.id&&i.name&&validIds.has(i.category)).map(i=>({...i,price:Number(i.price)||0,qty:Number(i.qty)||1,inStock:Boolean(i.inStock),checked:false}));
+    if(!items.length)throw new Error("Sin productos");localStorage.setItem(CATEGORIES_KEY,JSON.stringify(categories));saveItems();showToast("Respaldo importado");
   }catch{showToast("El archivo no es un respaldo válido")}finally{event.target.value=""}
 }
 function showInstallHelp(){
@@ -179,14 +244,18 @@ $$("[data-go]").forEach(button=>button.addEventListener("click",()=>navigate(but
 $$("[data-add]").forEach(button=>button.addEventListener("click",()=>openProductDialog()));
 $$("[data-close]").forEach(button=>button.addEventListener("click",closeProductDialog));
 $$("[data-info-close]").forEach(button=>button.addEventListener("click",()=>$("#infoDialog").close()));
-$$(".tab").forEach(tab=>tab.addEventListener("click",()=>{currentCategory=tab.dataset.category;syncTabs();renderInventory()}));
+/* Las pestañas de secciones se enlazan al renderizarlas. */
 $("#searchInput").addEventListener("input",renderInventory);
 $("#productForm").addEventListener("submit",submitProduct);
 $("#deleteProductBtn").addEventListener("click",deleteProduct);
+$("#addCategoryBtn").addEventListener("click",()=>openCategoryDialog());
+$("#categoryForm").addEventListener("submit",submitCategory);
+$("#deleteCategoryBtn").addEventListener("click",deleteCategory);
+$$("[data-category-close]").forEach(button=>button.addEventListener("click",()=>$("#categoryDialog").close()));
 $("#shareBtn").addEventListener("click",shareList);
 $("#exportBtn").addEventListener("click",exportData);
 $("#importInput").addEventListener("change",importData);
-$("#resetBtn").addEventListener("click",()=>{if(confirm("¿Restaurar los productos de ejemplo? Se reemplazará tu inventario actual.")){items=structuredClone(starterItems);saveItems();showToast("Datos restaurados")}});
+$("#resetBtn").addEventListener("click",()=>{if(confirm("¿Restaurar las secciones y productos de ejemplo? Se reemplazará tu inventario actual.")){categories=structuredClone(starterCategories);items=structuredClone(starterItems);localStorage.setItem(CATEGORIES_KEY,JSON.stringify(categories));saveItems();showToast("Datos restaurados")}});
 $("#selectAll").addEventListener("change",event=>{missing().forEach(item=>item.checked=event.target.checked);saveItems()});
 $("#clearChecked").addEventListener("click",()=>{missing().forEach(item=>item.checked=false);saveItems()});
 $("#restockBtn").addEventListener("click",()=>{
