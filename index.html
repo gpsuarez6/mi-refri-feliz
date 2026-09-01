@@ -68,9 +68,6 @@
         </label>
         <div id="categoryTabs" class="tabs" role="tablist">
           <button class="tab active" data-category="all">Todo</button>
-          <button class="tab" data-category="fridge">Refrigerador</button>
-          <button class="tab" data-category="pantry">Despensa</button>
-          <button class="tab" data-category="cleaning">Aseo</button>
         </div>
         <div class="inventory-legend">
           <span><i class="dot green"></i> Disponible</span>
@@ -99,6 +96,11 @@
 
       <section id="settingsView" class="view" aria-labelledby="settingsTitle">
         <div class="page-title"><div><p class="eyebrow">PERSONALIZA</p><h2 id="settingsTitle">Configuración</h2></div></div>
+        <div class="settings-group">
+          <div class="settings-title-row"><h3>Secciones del inventario</h3><button id="addCategoryBtn" class="text-button">＋ Agregar</button></div>
+          <p class="settings-help">Crea y ordena tu hogar como prefieras.</p>
+          <div id="categorySettingsList" class="category-settings-list"></div>
+        </div>
         <div class="settings-group">
           <h3>Datos</h3>
           <button id="exportBtn" class="setting-row"><span>📤 Exportar respaldo</span><b>›</b></button>
@@ -133,11 +135,7 @@
       <input id="productId" type="hidden">
       <label>Nombre del producto<input id="productName" required maxlength="60" placeholder="Ej: Leche"></label>
       <div class="form-grid">
-        <label>Ubicación<select id="productCategory" required>
-          <option value="fridge">Refrigerador</option>
-          <option value="pantry">Despensa</option>
-          <option value="cleaning">Aseo</option>
-        </select></label>
+        <label>Ubicación<select id="productCategory" required></select></label>
         <label>Ícono<input id="productEmoji" maxlength="4" value="📦"></label>
       </div>
       <div class="form-grid">
@@ -149,6 +147,23 @@
       <div class="dialog-actions">
         <button id="deleteProductBtn" type="button" class="secondary-button danger hidden">Eliminar</button>
         <button type="submit" class="primary-button">Guardar producto</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="categoryDialog">
+    <form id="categoryForm" method="dialog">
+      <div class="dialog-header">
+        <div><p class="eyebrow">SECCIÓN</p><h2 id="categoryDialogTitle">Nueva sección</h2></div>
+        <button type="button" class="dialog-close" data-category-close aria-label="Cerrar">×</button>
+      </div>
+      <input id="categoryId" type="hidden">
+      <label>Nombre de la sección<input id="categoryName" required maxlength="30" placeholder="Ej: Congelador"></label>
+      <label>Ícono<input id="categoryEmoji" maxlength="4" value="📦" required></label>
+      <p id="categoryDeleteWarning" class="form-note hidden"></p>
+      <div class="dialog-actions">
+        <button id="deleteCategoryBtn" type="button" class="secondary-button danger hidden">Eliminar</button>
+        <button type="submit" class="primary-button">Guardar sección</button>
       </div>
     </form>
   </dialog>
